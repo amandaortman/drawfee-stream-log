@@ -10,11 +10,6 @@ function descriptor()
     }
 end
 
---Temporary Current Tables for Updating Table
---quotesCurrentList = {}
---drawingsCurrentList = {}
---commentsCurrentList = {}
-
 fileName = nil
 quotesFile = nil
 drawFile = nil
@@ -23,6 +18,10 @@ commentsFile = nil
 function getVideoData() 
     input = vlc.object.input()
     fileName = vlc.input.item():name()
+    
+    -- get date from filename by getting the first 8 numbesr in the file name
+    -- ex. 20190517_426125638_Art.mp4 > 20190517
+    -- 20190517 is in yyyy-mm-dd
     fileDate = string.sub(fileName, 1, 8)
 end
 
@@ -35,9 +34,9 @@ function activate()
     -- vlc.msg.dbg(vlc.config.userdatadir())
     if pcall(getVideoData) then
         getVideoData() 
-        quotesFile =  vlc.config.userdatadir().."/drawfeeQuotes" .. fileDate .. ".csv"
-        drawFile =  vlc.config.userdatadir().."/drawfeeDrawings" .. fileDate .. ".csv"
-        commentsFile =  vlc.config.userdatadir().."/drawfeeComments" .. fileDate .. ".csv"
+        quotesFile =  vlc.config.userdatadir().."/drawfeeQuotes" .. fileDate .. ".txt"
+        drawFile =  vlc.config.userdatadir().."/drawfeeDrawings" .. fileDate .. ".txt"
+        commentsFile =  vlc.config.userdatadir().."/drawfeeComments" .. fileDate .. ".txt"
         createDialog()
         
         runQuotes()
@@ -64,13 +63,20 @@ function close()
 end
 
 -- Example: w = layout:add_label( "My Label", 2, 3, 4, 5 ) will create a label at row 3, col 2, with a relative width of 4, height of 5.
+-- In the following functions, you can always add some optional parameters: col, row, col_span, row_span, width, height.
+-- They define the position of a widget in the dialog:
+-- row, col are the absolute positions on a grid of widgets. First row, col are 1.
+-- row_span, col_span represent the relative size of a widget on the grid. A widget with col_span = 4 will be displayed as wide as 4 widgets of col_span = 1.
+-- width and height are size hints (in pixels) but may be discarded by the GUI module
+-- Example: w = d:add_label( "My Label", 2, 3, 4, 5 ) will create a label at row 3, col 2, with a relative width of 4, height of 5.
+
 function createDialog()
     w = vlc.dialog("Drawfee Stream Log")
 
 --Quotes
     quotes = w:add_label("Quotes",1,1,12,1)
 
-    quotesList = w:add_list(1,2,60,1)
+    quotesList = w:add_list(1,2,60,1,20,40)
 
     setQuote = w:add_text_input("Where we",1,3,60,1)
 
@@ -79,6 +85,7 @@ function createDialog()
 
     clearBtn = w:add_button("Clear",function() clearText(1)  end,1,5,3,1)
     deleteBtn = w:add_button("--",function() clearText(1)  end,4,5,3,1)
+    pausePlayBtn = w:add_button("Pause/Play",pausePlayStatus,21,5,20,1)
     setTimeBtn = w:add_button("Set Time",function() setTimeFnc(1) end,41,5,10,1)
     addQuoteBtn = w:add_button("Add Quote",function() addToList(setQuote, setSpeaker, nil, setTime, 1) end,51,5,10,1)
 
@@ -98,6 +105,7 @@ function createDialog()
     
     clearBtn2 = w:add_button("Clear",function() clearText(2) end,1,11,3,1)
     deleteBtn2 = w:add_button("--",function() clearText(1)  end,4,11,3,1)
+    pausePlayBtn2 = w:add_button("Pause/Play",pausePlayStatus,21,11,20,1)
     setTimeBtn2 = w:add_button("Set Time",function() setTimeFnc(2) end,41,11,10,1)
     addDrawBtn = w:add_button("Add Drawing",function() addToList(setDraw, setDrawer, setUsername, setTime2, 2) end,51,11,10,1)
 
@@ -113,65 +121,60 @@ function createDialog()
 
     clearBtn3 = w:add_button("Clear",function() clearText(3) end,1,16,3,1)
     deleteBtn3 = w:add_button("--",function() clearText(1)  end,4,16,4,1)
+    pausePlayBtn3 = w:add_button("Pause/Play",pausePlayStatus, 21,16,20,1)
     setTimeBtn3 = w:add_button("Set Time",function() setTimeFnc(3) end, 41,16,10,1)
     addCommentBtn = w:add_button("Add Comment",function() addToList(addComment, nil, nil, setTime3, 3) end,51,16,10,1)    
 
     lineBreak3 = w:add_label("<hr />",1,17,60,1)
 
-    pausePlayBtn = w:add_button("Pause/Play",pausePlayStatus,1,18,60,1)
+    pausePlayBtn4 = w:add_button("Pause/Play",pausePlayStatus,1,18,60,1)
 end
 
 
 function runQuotes()    
-    local quotesCSV = io.open(quotesFile,r) --read only
+    local quotesTXT = io.open(quotesFile,r) --read only
     local quotesFormatted = {}
-    --local tempHold = {}
-    if (quotesCSV) then
-        for lines in quotesCSV:lines() do --for each line in file
+    
+    if (quotesTXT) then
+        for lines in quotesTXT:lines() do --for each line in file
             if lines ~= nil then --if the lines exist 
-                --tempHold = string.gsub(lines, "\n", "~~")
-                --table.insert (quotesCurrentList, tempHold)
                 quotesFormatted = string.gsub(lines, "&", "\t")
                 quotesList:add_value(quotesFormatted)
             end
         end
-        quotesCSV:close()
+        quotesTXT:close()
     end    
 end
 
 
 function runDrawings()
-    local drawingsCSV = io.open(drawFile,r) --read only
+    local drawingsTXT = io.open(drawFile,r) --read only
     local drawsFormatted = {}
-    --local tempHold = {}
-    if (drawingsCSV) then --if drawing file exists
-        for lines in drawingsCSV:lines() do --for each line in file
+
+    if (drawingsTXT) then --if drawing file exists
+        for lines in drawingsTXT:lines() do --for each line in file
             if lines ~= nil then --if the lines exist 
-                --tempHold = string.gsub(lines, "\n", "~~")
-                --table.insert (drawingsCurrentList, tempHold)
                 drawsFormatted = string.gsub(lines, "&", "\t")
                 drawingsList:add_value(drawsFormatted)
             end
         end
-        drawingsCSV:close()
+        drawingsTXT:close()
     end
 end
 
 
 function runCommments()
-    local commentsCSV = io.open(commentsFile,r) --read only
+    local commentsTXT = io.open(commentsFile,r) --read only
     local commentsFormatted = {}
-    --local tempHold = {}
-    if (commentsCSV) then
-        for lines in commentsCSV:lines() do --for each line in file
+    
+    if (commentsTXT) then
+        for lines in commentsTXT:lines() do --for each line in file
             if lines ~= nil then --if the lines exist
-                --tempHold = string.gsub(lines, "\n", "~~")
-                --table.insert (commentsCurrentList, tempHold)
                 commentsFormatted = string.gsub(lines, "&", "\t")
                 commentsList:add_value(commentsFormatted)               
             end
         end
-        commentsCSV:close()
+        commentsTXT:close()
     end
 end
 
@@ -253,18 +256,6 @@ function setTimeFnc(t)
     end
 end
 
---[[ function deleteSelection(x,y) BRO IDK I QUIT
-    local selection = y:get_selection()
-
-    for a,b in ipairs(quotesCurrentList) do 
-        if a==selection then
-            a = nil  
-            b = nil         
-        else           
-            vlc.msg.dbg(a,b)
-        end
-    end
-end     ]]
 
 function pausePlayStatus(x)
     if x==1 then
